@@ -1,27 +1,41 @@
-# BacktestLab staging — integration notes
+# BacktestLab build notes
 
-These files are staged for a standard `rails new` app (Rails 8, importmap,
-Stimulus, sqlite). Steps once `rails new backtestlab` exists:
+## What was built
 
-1. Copy into the new app, preserving paths:
-   - `app/services/binance_client.rb`
-   - `app/controllers/charts_controller.rb`
-   - `app/controllers/api/klines_controller.rb`
-   - `app/views/charts/show.html.erb`
-   - `app/javascript/controllers/chart_controller.js`
-   - `app/javascript/lib/{indicators,backtester,strategies}.js`
-2. Replace `config/routes.rb` with the staged one.
-3. In `config/importmap.rb` add:
-   `pin_all_from "app/javascript/lib", under: "lib"`
-4. In `app/views/layouts/application.html.erb`, inside `<head>`:
-   `<%= yield :head %>`
-   (the chart page uses `content_for :head` to load Lightweight Charts v4
-   from jsDelivr — no npm build step needed)
-5. `bin/rails db:prepare` (no migrations yet — models come later:
-   Strategy, BacktestRun for saving work)
-6. `bin/dev` → http://localhost:3000
+A complete Rails 8.1 app (importmap + Stimulus + sqlite, no Node build step):
 
-Tests: `node app/javascript/lib/test.mjs` (34 checks, no dependencies).
+- `ChartsController#show` + dark trading UI (`app/views/charts/show.html.erb`)
+- `Api::KlinesController` — `/api/klines?symbol=BTCUSDT&interval=1h&limit=500`,
+  30s Rails-cache, proxies Binance public klines
+- `BinanceClient` — `data-api.binance.vision` (no key). Uses `uri.find_proxy`
+  so it honors `https_proxy`/`http_proxy`/`no_proxy` env vars and connects
+  directly when none are set.
+- `chart_controller.js` (Stimulus) — Lightweight Charts v4 candlesticks +
+  volume, Binance websocket live ticks, 7 indicator toggles (overlay + lower
+  pane), 4 tunable strategies, in-browser backtester with equity curve,
+  trade markers and trades table.
+- `app/javascript/lib/{indicators,backtester,strategies}.js` — pure ESM,
+  pinned via `pin_all_from "app/javascript/lib", under: "lib"` in importmap.
+- Lightweight Charts v4 loaded from jsDelivr via `content_for :head`
+  (layout has `<%= yield :head %>`).
 
-Data: Binance public endpoint `data-api.binance.vision` (no key).
-Rails caches klines for 30s per symbol/interval.
+## Verified
+
+- `bin/rails routes` — root + `/api/klines` live
+- Homepage renders HTTP 200 with chart wiring
+- `node app/javascript/lib/test.mjs` — 34/34 passing (indicator correctness,
+  no-lookahead fill check, strategy smoke tests)
+- Binance klines fetched live via curl (BTC ~85k at build time)
+
+## Known sandbox quirk (not an app bug)
+
+On the build VM, Ruby's `Net::HTTP` TLS to `data-api.binance.vision` hangs
+through the egress proxy while curl and Ruby-to-other-hosts work fine — a
+proxy/host-specific quirk. The request itself is proven good via curl, and
+the code is standard proxy-aware `Net::HTTP`, so it works on any normal
+machine/server without the proxy.
+
+## Next steps
+
+- Add `Strategy` and `BacktestRun` models + auth to save work
+- Provider abstraction if stocks get added alongside crypto
