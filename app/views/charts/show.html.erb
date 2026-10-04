@@ -1,0 +1,106 @@
+<% content_for :head do %>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<% end %>
+
+<div class="bl-app" data-controller="chart"
+     data-chart-symbols-value="<%= @symbols.to_json %>"
+     data-chart-intervals-value="<%= @intervals.to_json %>">
+
+  <header class="bl-topbar">
+    <div class="bl-brand">BacktestLab</div>
+    <div class="bl-controls">
+      <label>Symbol
+        <select data-chart-target="symbol" data-action="change->chart#reload">
+          <% @symbols.each do |s| %>
+            <option value="<%= s %>" <%= "selected" if s == "BTCUSDT" %>><%= s %></option>
+          <% end %>
+        </select>
+      </label>
+      <label>Interval
+        <select data-chart-target="interval" data-action="change->chart#reload">
+          <% @intervals.each do |label, val| %>
+            <option value="<%= val %>" <%= "selected" if val == "1h" %>><%= label %></option>
+          <% end %>
+        </select>
+      </label>
+      <span class="bl-live" data-chart-target="liveDot" title="Live updates via websocket">● live</span>
+    </div>
+  </header>
+
+  <main class="bl-main">
+    <section class="bl-chart-panel">
+      <div id="bl-chart" data-chart-target="chartEl" class="bl-chart"></div>
+      <div class="bl-indicator-bar">
+        <span class="bl-section-title">Indicators</span>
+        <label><input type="checkbox" data-action="change->chart#toggleIndicators" value="sma"> SMA 20/50</label>
+        <label><input type="checkbox" data-action="change->chart#toggleIndicators" value="ema"> EMA 12/26</label>
+        <label><input type="checkbox" data-action="change->chart#toggleIndicators" value="bb"> Bollinger 20</label>
+        <label><input type="checkbox" data-action="change->chart#toggleIndicators" value="vwap"> VWAP</label>
+        <label><input type="checkbox" data-action="change->chart#toggleIndicators" value="rsi"> RSI 14</label>
+        <label><input type="checkbox" data-action="change->chart#toggleIndicators" value="macd"> MACD</label>
+        <label><input type="checkbox" data-action="change->chart#toggleIndicators" value="stoch"> Stochastic</label>
+      </div>
+    </section>
+
+    <aside class="bl-side">
+      <div class="bl-card">
+        <div class="bl-section-title">Strategy backtest</div>
+        <label>Strategy
+          <select data-chart-target="strategy" data-action="change->chart#renderStrategyParams"></select>
+        </label>
+        <p class="bl-strategy-desc" data-chart-target="strategyDesc"></p>
+        <div data-chart-target="strategyParams" class="bl-params"></div>
+        <button class="bl-btn" data-action="click->chart#runBacktest">Run backtest</button>
+        <p class="bl-fineprint">Fills at next open · 0.1% fee · 0.05% slippage · no leverage</p>
+      </div>
+
+      <div class="bl-card" data-chart-target="resultsCard" hidden>
+        <div class="bl-section-title">Results</div>
+        <div class="bl-stats" data-chart-target="stats"></div>
+        <div id="bl-equity" class="bl-equity"></div>
+        <div class="bl-section-title">Trades <span class="bl-muted" data-chart-target="tradeCount"></span></div>
+        <div class="bl-trades" data-chart-target="trades"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<style>
+  :root { --bg: #0d1117; --panel: #161b22; --border: #2d333b; --text: #e6edf3; --muted: #8b949e; --accent: #1f6feb; --green: #26a69a; --red: #ef5350; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .bl-app { min-height: 100vh; display: flex; flex-direction: column; }
+  .bl-topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .bl-brand { font-weight: 700; font-size: 18px; letter-spacing: .3px; }
+  .bl-controls { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--muted); }
+  .bl-controls select, .bl-card select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; margin-left: 6px; }
+  .bl-live { color: var(--green); font-size: 12px; }
+  .bl-live.off { color: var(--muted); }
+  .bl-main { display: flex; gap: 12px; padding: 12px; flex: 1; min-height: 0; }
+  .bl-chart-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .bl-chart { flex: 1; min-height: 520px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+  .bl-indicator-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+  .bl-indicator-bar label { display: flex; gap: 5px; align-items: center; color: var(--muted); cursor: pointer; }
+  .bl-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .bl-side { width: 340px; display: flex; flex-direction: column; gap: 12px; }
+  .bl-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 13px; }
+  .bl-card label { display: block; margin: 8px 0; color: var(--muted); }
+  .bl-strategy-desc { color: var(--muted); font-size: 12px; margin: 6px 0; }
+  .bl-params label { display: flex; justify-content: space-between; align-items: center; }
+  .bl-params input { width: 90px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+  .bl-btn { width: 100%; margin-top: 10px; padding: 10px; background: var(--accent); color: #fff; border: 0; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .bl-btn:hover { filter: brightness(1.15); }
+  .bl-fineprint { color: var(--muted); font-size: 11px; margin: 8px 0 0; }
+  .bl-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+  .bl-stat { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+  .bl-stat .k { font-size: 11px; color: var(--muted); }
+  .bl-stat .v { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .bl-stat .v.pos { color: var(--green); } .bl-stat .v.neg { color: var(--red); }
+  .bl-equity { height: 140px; margin: 6px 0 12px; }
+  .bl-trades { max-height: 260px; overflow: auto; font-size: 12px; }
+  .bl-trades table { width: 100%; border-collapse: collapse; }
+  .bl-trades th, .bl-trades td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  .bl-trades th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+  .bl-muted { color: var(--muted); font-weight: 400; text-transform: none; }
+  @media (max-width: 1000px) { .bl-main { flex-direction: column; } .bl-side { width: auto; } }
+</style>
